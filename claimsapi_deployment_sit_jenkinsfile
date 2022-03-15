@@ -1,0 +1,87 @@
+pipeline
+{
+	agent
+	{
+        label 'Master'
+    }
+    options
+	{
+		buildDiscarder(
+			logRotator(
+                daysToKeepStr: '60',   // Build Records
+                artifactDaysToKeepStr: '60'  //Artifacts from builds older than this number of days will be deleted, but the logs, history, reports, etc for the build will be kept
+			)
+        )
+        timeout(50)
+        timestamps()
+        disableConcurrentBuilds()
+    }
+	parameters
+	{     
+		choice(
+			name: 'Environment',
+			choices: "SIT",
+			description: 'Select the Deployment Environment' )
+        }
+    stages
+	{
+		stage('Checkout config file')
+    	{
+			steps
+			{
+				dir('config')
+				{
+					git branch:'master', credentialsId: 'jenkin-bitbucket', url: 'https://bitbucket.starhealth.in/scm/test/test_demo.git'
+					echo 'checkout completed'                
+					script
+					{  
+						def props = readJSON file: "${env.WORKSPACE}/config/devops.json"
+						app_property_url = props["${params.Environment}"]['claimsapi_property_url']
+                       				app_property_branch = props["${params.Environment}"]['claimsapi_property_branch']
+						bitbucket_repo_name = props["${params.Environment}"]['claimsapi_bitbucket_repo_name']
+						bitbucket_branch_type = props["${params.Environment}"]['bitbucket_branch_type']
+						bitbucket_branch_name = props["${params.Environment}"]['bitbucket_branch_name']
+						extension_war = props["${params.Environment}"]['extension']
+                        			nexus_repo_url = props["${params.Environment}"]['nexus_repo_url']
+                        			java_home = props["${params.Environment}"]['galaxy_java_home']
+                       				claimsapi_path = props["${params.Environment}"]['claimsapi_app_home_path']
+                   			 }
+			       }
+		     }
+        }
+        stage('Checkout PROPERTIES files')
+    	{
+			steps
+			{
+            	dir('Files')
+                {
+            		git branch: app_property_branch, credentialsId: 'jenkin-bitbucket', url: app_property_url
+    			echo 'checkout completed'
+            	}
+            }
+        }
+    	stage('Deployment')
+		{
+        	steps
+                    {
+            	    dir('config')
+   				{
+       				git branch:'master', credentialsId: 'jenkin-bitbucket', url: 'https://bitbucket.starhealth.in/scm/test/test_demo.git'
+       				echo 'checkout completed'
+            		        echo 'Start deployment'
+						ansiblePlaybook( 
+							become: true,
+							becomeUser: 'deploy',
+							credentialsId: '968f00c4-d736-4a8c-b3d5-691c7374972a',
+							disableHostKeyChecking: true,
+							installation: 'ansible 2.9.12',
+							inventory: 'hosts',
+							playbook: 'claimsapi_playbook_sit.yml',
+							sudoUser: null,
+							extraVars: [Env:"${params.Environment}",GROUP_ID:"${bitbucket_repo_name}",ARTIFACT_ID:"${bitbucket_branch_type}",EXTENSION:"${extension_war}",VERSION:"${bitbucket_branch_name}",PROPERTIES:"${env.WORKSPACE}/Files/Properties/",,NEXUS_REPO_URL:"${nexus_repo_url}",JAVA_HOME:"${java_home}",CLAIMSAPI_HOME_PATH:"${claimsapi_path}"]       
+						)
+            	}
+            }
+        }
+     }
+}
