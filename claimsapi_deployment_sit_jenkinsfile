@@ -31,7 +31,7 @@ pipeline
 			{
 				dir('config')
 				{
-					git branch:'master', credentialsId: 'jenkin-bitbucket', url: 'https://bitbucket.starhealth.in/scm/test/test_demo.git'
+					git branch:'main', credentialsId: 'Parthasarathy@123', url: 'https://bitbucket.starhealth.in/scm/test/test_demo.git'
 					echo 'checkout completed'                
 					script
 					{  
